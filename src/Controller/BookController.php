@@ -6,10 +6,12 @@ use App\Entity\Book;
 use App\Repository\BookRepository;
 use App\Repository\AuthorRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -22,16 +24,21 @@ class BookController extends AbstractController
 {
     
     #[Route('/api/books', name: 'books', methods: ['GET'])]
-    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request): JsonResponse
+    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
     {
         $page = $request->get('page', 1);
         $limit = $request->get('limit', 3);
-        $bookList = $bookRepository->findAllWithPagination($page, $limit);
+
+        $idCache = "getAllBooks-" . $page . "-" . $limit;
+        $bookList = $cachePool->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $limit) {
+            echo ("l'element n'est pas encore en cache");
+            $item->tag("booksCache");
+            return $bookRepository->findAllWithPagination($page, $limit);
+        });
 
         $jsonBookList = $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
-            
         return new JsonResponse($jsonBookList, Response::HTTP_OK, [], true);
-    }
+   }
 
     #[Route('/api/books/{id}', name: 'detailBook', methods: ['GET'])]
     public function getDetailBook(Book $book, SerializerInterface $serializer): JsonResponse 
