@@ -21,13 +21,18 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\validator;
 class BookController extends AbstractController
 {
     
-    #[Route('/api/books', name: 'book', methods: ['GET'])]
-    public function getBookList(BookRepository $bookRepository, SerializerInterface $serializer): JsonResponse
+    #[Route('/api/books', name: 'books', methods: ['GET'])]
+    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request): JsonResponse
     {
-        $bookList = $bookRepository->findAll();
-        $jsonBookList = $serializer->serialize($bookList, 'json', ['groups'=>'getBooks']);
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 3);
+        $bookList = $bookRepository->findAllWithPagination($page, $limit);
+
+        $jsonBookList = $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
+            
         return new JsonResponse($jsonBookList, Response::HTTP_OK, [], true);
     }
+
     #[Route('/api/books/{id}', name: 'detailBook', methods: ['GET'])]
     public function getDetailBook(Book $book, SerializerInterface $serializer): JsonResponse 
     {
