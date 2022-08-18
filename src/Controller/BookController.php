@@ -24,19 +24,20 @@ class BookController extends AbstractController
 {
     
     #[Route('/api/books', name: 'books', methods: ['GET'])]
-    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
+    public function getAllBooks(BookRepository $bookRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cache): JsonResponse
     {
         $page = $request->get('page', 1);
         $limit = $request->get('limit', 3);
 
         $idCache = "getAllBooks-" . $page . "-" . $limit;
-        $bookList = $cachePool->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $limit) {
+        
+        $jsonBookList = $cache->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $limit, $serializer) {
             echo ("l'element n'est pas encore en cache");
             $item->tag("booksCache");
-            return $bookRepository->findAllWithPagination($page, $limit);
+            $bookList = $bookRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
         });
-
-        $jsonBookList = $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
+      
         return new JsonResponse($jsonBookList, Response::HTTP_OK, [], true);
    }
 
@@ -47,8 +48,10 @@ class BookController extends AbstractController
         return new JsonResponse($jsonBook, Response::HTTP_OK, ['accept' => 'json'], true);
     }
     #[Route('/api/books/{id}', name: 'deleteBook', methods: ['DELETE'])]
-    public function deleteBook(Book $book, EntityManagerInterface $em): JsonResponse 
+    #[IsGranted('ROLE_ADMIN', message:'vous n avez pas les droits de supprimer ce livre')]
+    public function deleteBook(Book $book, EntityManagerInterface $em, TagAwareCacheInterface  $cache): JsonResponse 
     {
+        $cache->invalidateTags(["booksCache"]);
         $em->remove($book);
         $em->flush();
 
